@@ -121,7 +121,7 @@
                     <div id="dp-warning-1" class="hidden mb-2 p-2 rounded border border-rose-800 bg-rose-950/60 text-rose-300 text-xs flex items-center justify-between gap-2 transition-all">
                         <span class="flex items-center gap-2">
                             <i class="fa-solid fa-triangle-exclamation text-rose-500 animate-pulse"></i>
-                            <span>Threshold reached. Maximum allocation is 3 Detachment Points (DP).</span>
+                            <span id="warning-text-1">Threshold reached. Maximum allocation is 3 Detachment Points (DP).</span>
                         </span>
                         <button onclick="document.getElementById('dp-warning-1').classList.add('hidden')" class="text-rose-400 hover:text-rose-200"><i class="fa-solid fa-xmark"></i></button>
                     </div>
@@ -165,7 +165,7 @@
                     <div id="dp-warning-2" class="hidden mb-2 p-2 rounded border border-rose-800 bg-rose-950/60 text-rose-300 text-xs flex items-center justify-between gap-2 transition-all">
                         <span class="flex items-center gap-2">
                             <i class="fa-solid fa-triangle-exclamation text-rose-500 animate-pulse"></i>
-                            <span>Threshold reached. Maximum allocation is 3 Detachment Points (DP).</span>
+                            <span id="warning-text-2">Threshold reached. Maximum allocation is 3 Detachment Points (DP).</span>
                         </span>
                         <button onclick="document.getElementById('dp-warning-2').classList.add('hidden')" class="text-rose-400 hover:text-rose-200"><i class="fa-solid fa-xmark"></i></button>
                     </div>
@@ -349,7 +349,7 @@
                         { name: "Emperor's Shield", disp: "Priority Assets", dp: 2 },
                         { name: "Bastion Task Force", disp: "Take and Hold", dp: 2 },
                         { name: "Shadowmark Talon", disp: "Disruption", dp: 2 },
-                        { name: "Vanguard Task Force", disp: "Disruption", dp: 2 },
+                        { name: "Vanguard Task Force", fontDisp: "Disruption", dp: 2 },
                         { name: "Forgefather Seekers", disp: "Purge the Foe", dp: 2 },
                         { name: "Spearpoint Task Force", disp: "Disruption", dp: 2 },
                         { name: "Firestorm Assault Force", disp: "Purge the Foe", dp: 2 },
@@ -1849,14 +1849,34 @@
             const activeSelections = state[panelId].deployments;
             const existingIndex = activeSelections.findIndex(d => d.index === index);
             const warningEl = document.getElementById(`dp-warning-${panelId}`);
+            const warningTextEl = document.getElementById(`warning-text-${panelId}`);
 
             warningEl.classList.add('hidden');
+
+            // --- MUTUAL EXCLUSION RESTRICTION ENGINE ---
+            const hasHuntingWarpack = activeSelections.some(d => d.name === "Hunting Warpack");
+            const hasHoundpackLance = activeSelections.some(d => d.name === "Houndpack Lance");
+
+            if (existingIndex === -1) {
+                if (selectedDetachment.name === "Hunting Warpack" && hasHoundpackLance) {
+                    warningTextEl.textContent = "Configuration Conflict: Selecting 'Hunting Warpack' is restricted while 'Houndpack Lance' is deployed.";
+                    warningEl.classList.remove('hidden');
+                    return;
+                }
+                if (selectedDetachment.name === "Houndpack Lance" && hasHuntingWarpack) {
+                    warningTextEl.textContent = "Configuration Conflict: Selecting 'Houndpack Lance' is restricted while 'Hunting Warpack' is deployed.";
+                    warningEl.classList.remove('hidden');
+                    return;
+                }
+            }
+            // -------------------------------------------
 
             if (existingIndex > -1) {
                 activeSelections.splice(existingIndex, 1);
             } else {
                 const totalCalculatedDP = activeSelections.reduce((sum, d) => sum + d.dp, 0);
                 if (totalCalculatedDP + selectedDetachment.dp > 3) {
+                    warningTextEl.textContent = "Threshold reached. Maximum allocation is 3 Detachment Points (DP).";
                     warningEl.classList.remove('hidden');
                     return;
                 }
@@ -1871,6 +1891,8 @@
             });
 
             const newTotalDP = activeSelections.reduce((sum, d) => sum + d.dp, 0);
+            const updateHuntingWarpackActive = activeSelections.some(d => d.name === "Hunting Warpack");
+            const updateHoundpackActive = activeSelections.some(d => d.name === "Houndpack Lance");
 
             currentPool.forEach((det, idx) => {
                 const elem = document.getElementById(`det-${panelId}-${idx}`);
@@ -1881,7 +1903,16 @@
                     elem.classList.add("border-amber-500", "bg-amber-500/5");
                 }
 
-                if (!isSelected && (newTotalDP + det.dp > 3)) {
+                // Mutual exclusion UI styling rules
+                if (!isSelected && det.name === "Hunting Warpack" && updateHoundpackActive) {
+                    elem.style.opacity = "0.3";
+                    elem.style.cursor = "not-allowed";
+                } else if (!isSelected && det.name === "Houndpack Lance" && updateHuntingWarpackActive) {
+                    elem.style.opacity = "0.3";
+                    elem.style.cursor = "not-allowed";
+                } 
+                // Standard DP capacity rule handling
+                else if (!isSelected && (newTotalDP + det.dp > 3)) {
                     elem.style.opacity = "0.4";
                     elem.style.cursor = "not-allowed";
                 } else {
